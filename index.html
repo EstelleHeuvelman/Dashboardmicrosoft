@@ -417,7 +417,7 @@
   <div class="dashboard">
     <aside class="sidebar">
       <div class="brand">Microsoft AI Dashboard
-        <small>Realtime nieuws + statusoverzicht</small>
+        <small>Realtime Microsoft nieuws + statusoverzicht</small>
       </div>
       <ul class="side-nav">
         <li>Overzicht</li>
@@ -426,7 +426,7 @@
         <li>Insights</li>
       </ul>
       <div class="side-status">
-        Bronnen: Microsoft, Azure, OpenAI, AI algemeen
+        Bronnen: officiële Microsoft-platformen
         <div class="pulse">Live monitor actief</div>
       </div>
     </aside>
@@ -435,7 +435,7 @@
       <header class="hero">
         <div>
           <h1>Microsoft & AI Live Nieuwsdashboard</h1>
-          <p>Één strakke pagina met automatisch bijgewerkte nieuwtjes over Microsoft, Azure, OpenAI en de AI-markt.</p>
+          <p>Één strakke pagina met automatisch bijgewerkte Microsoft-nieuwtjes van officiële Microsoft-kanalen.</p>
         </div>
         <div class="last-updated" id="lastUpdated">Laatste update: —</div>
       </header>
@@ -471,12 +471,12 @@
         <div class="overview-grid">
           <div class="overview-box">
             <strong>Live dekking</strong>
-            <p style="margin-top: 8px; color: var(--text-soft);">De feed combineert meerdere RSS-bronnen en toont automatisch de nieuwste items. Refresh handmatig of wacht op auto-update iedere 10 minuten.</p>
+            <p style="margin-top: 8px; color: var(--text-soft);">De feed gebruikt alleen Microsoft-beheerde kanalen en toont automatisch de nieuwste updates. Refresh handmatig of wacht op auto-update iedere 10 minuten.</p>
             <div class="focus-tags">
               <span class="tag">Microsoft</span>
               <span class="tag">Azure</span>
-              <span class="tag">OpenAI</span>
-              <span class="tag">AI algemeen</span>
+              <span class="tag">Microsoft 365</span>
+              <span class="tag">Microsoft Security</span>
             </div>
           </div>
           <div class="overview-box">
@@ -503,13 +503,11 @@
 
   <script>
     const rssSources = [
-      { name: "Microsoft Blog", url: "https://blogs.microsoft.com/feed/" },
+      { name: "Microsoft Blogs", url: "https://blogs.microsoft.com/feed/" },
+      { name: "Microsoft DevBlogs", url: "https://devblogs.microsoft.com/feed/" },
       { name: "Azure Blog", url: "https://azure.microsoft.com/en-us/blog/feed/" },
-      { name: "OpenAI Blog", url: "https://openai.com/news/rss.xml" },
-      {
-        name: "Google News AI",
-        url: "https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en"
-      }
+      { name: "Microsoft 365 Blog", url: "https://www.microsoft.com/en-us/microsoft-365/blog/feed/" },
+      { name: "Microsoft Security Blog", url: "https://www.microsoft.com/en-us/security/blog/feed/" }
     ];
 
     const newsList = document.getElementById("newsList");
@@ -559,11 +557,11 @@
 
     function setLoadingState() {
       newsState.className = "state-message";
-      newsState.textContent = "Nieuws wordt opgehaald…";
+      newsState.textContent = "Microsoft nieuws wordt opgehaald…";
       newsList.innerHTML = "";
       metricStatus.textContent = "Laden";
       metricSources.textContent = "Controleren...";
-      metricSourcesNote.textContent = "Bronnen worden opnieuw getest.";
+      metricSourcesNote.textContent = "Microsoft bronnen worden getest.";
 
       for (let i = 0; i < 3; i += 1) {
         const skeleton = document.createElement("article");
@@ -574,7 +572,7 @@
 
     function setErrorState() {
       newsState.className = "state-message error";
-      newsState.textContent = "Kon op dit moment geen nieuws laden. Probeer het zo opnieuw.";
+      newsState.textContent = "Kon op dit moment geen Microsoft-nieuws laden. Probeer het zo opnieuw.";
       metricStatus.textContent = "Fout";
       metricSources.textContent = "Tijdelijk offline";
       metricSourcesNote.textContent = "Check netwerkverbinding of probeer handmatige refresh.";
@@ -586,13 +584,13 @@
 
       if (!items.length) {
         newsState.className = "state-message error";
-        newsState.textContent = "Er zijn geen recente nieuwsitems gevonden.";
+        newsState.textContent = "Er zijn geen recente Microsoft-items gevonden.";
         metricStatus.textContent = "Geen data";
         return;
       }
 
       newsState.className = "state-message";
-      newsState.textContent = `Laatste synchronisatie succesvol: ${items.length} items geladen.`;
+      newsState.textContent = `Laatste synchronisatie succesvol: ${items.length} Microsoft-items geladen.`;
       metricStatus.textContent = "Actief";
 
       const fragment = document.createDocumentFragment();
@@ -617,7 +615,7 @@
     }
 
     async function fetchRssViaRss2Json(feed) {
-      const endpoint = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=8`;
+      const endpoint = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=10`;
       const response = await fetch(endpoint, { cache: "no-store" });
       if (!response.ok) throw new Error(`rss2json niet bereikbaar: ${feed.name}`);
 
@@ -633,47 +631,6 @@
         pubDate: item.pubDate || new Date().toISOString(),
         source: feed.name
       }));
-    }
-
-    async function fetchGdeltNews() {
-      const query = encodeURIComponent('("Microsoft" OR "Azure" OR "OpenAI" OR "artificial intelligence") lang:english');
-      const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&format=json&maxrecords=20&sort=datedesc`;
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) throw new Error("GDELT niet bereikbaar");
-
-      const data = await response.json();
-      const articles = Array.isArray(data.articles) ? data.articles : [];
-
-      return articles.map((article) => ({
-        title: sanitizeText(article.title || "Onbekende titel"),
-        link: (article.url || "#").trim(),
-        summary: sanitizeText(article.seendate ? `Gedetecteerd op ${article.seendate}.` : "").slice(0, 220) || "Geen samenvatting beschikbaar.",
-        pubDate: article.seendate || article.socialimage || new Date().toISOString(),
-        source: sanitizeText(article.domain || "GDELT")
-      }));
-    }
-
-    async function fetchHackerNewsFallback() {
-      const topics = ["Microsoft", "Azure", "OpenAI", "AI"];
-      const calls = topics.map((topic) =>
-        fetch(`https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(topic)}&tags=story&hitsPerPage=6`, {
-          cache: "no-store"
-        }).then((response) => {
-          if (!response.ok) throw new Error(`HN fout op ${topic}`);
-          return response.json();
-        })
-      );
-
-      const results = await Promise.all(calls);
-      return results.flatMap((result, index) =>
-        (result.hits || []).map((hit) => ({
-          title: sanitizeText(hit.title || `Nieuws over ${topics[index]}`),
-          link: (hit.url || hit.story_url || "#").trim(),
-          summary: `Fallback feed: ${topics[index]} via Hacker News.`,
-          pubDate: hit.created_at || new Date().toISOString(),
-          source: "Hacker News"
-        }))
-      );
     }
 
     function dedupeAndSort(items) {
@@ -698,27 +655,14 @@
       setLoadingState();
 
       try {
-        const gdeltResult = await Promise.allSettled([fetchGdeltNews()]);
         const rssResults = await Promise.allSettled(rssSources.map(fetchRssViaRss2Json));
-
-        const gdeltItems = gdeltResult
-          .filter((result) => result.status === "fulfilled")
-          .flatMap((result) => result.value);
-
         const rssItems = rssResults
           .filter((result) => result.status === "fulfilled")
           .flatMap((result) => result.value);
 
-        let merged = dedupeAndSort([...gdeltItems, ...rssItems]);
-        let sourceCount = Number(gdeltItems.length > 0) + rssResults.filter((result) => result.status === "fulfilled").length;
-        let fallbackUsed = false;
-
-        if (!merged.length) {
-          const fallbackItems = await fetchHackerNewsFallback();
-          merged = dedupeAndSort(fallbackItems);
-          sourceCount = merged.length ? 1 : 0;
-          fallbackUsed = true;
-        }
+        const merged = dedupeAndSort(rssItems);
+        const sourceCount = rssResults.filter((result) => result.status === "fulfilled").length;
+        const unavailable = rssSources.length - sourceCount;
 
         renderNews(merged);
 
@@ -735,21 +679,13 @@
 
         metricRefresh.textContent = refreshLabel;
         lastUpdated.textContent = `Laatste update: ${formatDate(refreshMoment.toISOString())}`;
-
-        if (fallbackUsed) {
-          metricSources.textContent = "Fallback actief";
-          metricSourcesNote.textContent = "Primaire feeds geven geen data; Hacker News wordt gebruikt.";
-          updateSummary.textContent = "Primaire feeds tijdelijk onbereikbaar. Fallback nieuwsbron actief.";
-        } else {
-          const unavailable = rssSources.length + 1 - sourceCount;
-          metricSources.textContent = unavailable > 0 ? `${sourceCount} online` : "Alle bronnen online";
-          metricSourcesNote.textContent = unavailable > 0
-            ? `${unavailable} bron(nen) tijdelijk traag of offline.`
-            : "Microsoft, Azure, OpenAI en AI-feed reageren goed.";
-          updateSummary.textContent = unavailable > 0
-            ? `${sourceCount} bronnen actief, ${unavailable} tijdelijk niet bereikbaar.`
-            : `Alle ${sourceCount} bronnen succesvol gesynchroniseerd.`;
-        }
+        metricSources.textContent = unavailable > 0 ? `${sourceCount} online` : "Alle bronnen online";
+        metricSourcesNote.textContent = unavailable > 0
+          ? `${unavailable} Microsoft-bron(nen) tijdelijk traag of offline.`
+          : "Alle Microsoft-platformen reageren goed.";
+        updateSummary.textContent = unavailable > 0
+          ? `${sourceCount} Microsoft-bronnen actief, ${unavailable} tijdelijk niet bereikbaar.`
+          : `Alle ${sourceCount} Microsoft-bronnen succesvol gesynchroniseerd.`;
 
         if (!merged.length) setErrorState();
       } catch (error) {

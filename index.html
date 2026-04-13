@@ -492,6 +492,23 @@
         </article>
       </section>
 
+      <section class="section" aria-label="Nieuwsfilters">
+        <div class="section-header" style="margin-bottom: 10px;">
+          <div>
+            <h2>Filter nieuws</h2>
+            <p class="section-subtitle">Kies direct hierboven op onderwerp: AI, DevOps, Dataverse, Security of Azure.</p>
+          </div>
+        </div>
+        <div class="filter-bar" id="filterBar" aria-label="Nieuws categorieën">
+          <button class="filter-chip active" data-filter="all" type="button">Alles</button>
+          <button class="filter-chip" data-filter="ai" type="button">AI</button>
+          <button class="filter-chip" data-filter="devops" type="button">DevOps</button>
+          <button class="filter-chip" data-filter="dataverse" type="button">Dataverse</button>
+          <button class="filter-chip" data-filter="security" type="button">Security</button>
+          <button class="filter-chip" data-filter="azure" type="button">Azure</button>
+        </div>
+      </section>
+
       <section class="section" aria-labelledby="overviewHeading">
         <div class="section-header">
           <div>
@@ -524,15 +541,6 @@
             <p class="section-subtitle">Automatisch geladen bij openen van de pagina.</p>
           </div>
           <button class="button" id="refreshButton" type="button">Nieuws verversen</button>
-        </div>
-
-        <div class="filter-bar" id="filterBar" aria-label="Nieuws categorieën">
-          <button class="filter-chip active" data-filter="all" type="button">Alles</button>
-          <button class="filter-chip" data-filter="ai" type="button">AI</button>
-          <button class="filter-chip" data-filter="devops" type="button">DevOps</button>
-          <button class="filter-chip" data-filter="dataverse" type="button">Dataverse</button>
-          <button class="filter-chip" data-filter="security" type="button">Security</button>
-          <button class="filter-chip" data-filter="azure" type="button">Azure</button>
         </div>
 
         <div id="newsState" class="state-message">Klaar om nieuws op te halen…</div>

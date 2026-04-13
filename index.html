@@ -275,6 +275,37 @@
       gap: 12px;
     }
 
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 12px;
+    }
+
+    .filter-chip {
+      border: 1px solid rgba(117, 160, 255, 0.35);
+      background: rgba(25, 39, 70, 0.72);
+      color: #dce9ff;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 0.83rem;
+      cursor: pointer;
+      transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    }
+
+    .filter-chip:hover {
+      border-color: var(--accent-cyan);
+      transform: translateY(-1px);
+      box-shadow: 0 0 12px rgba(82, 211, 255, 0.22);
+    }
+
+    .filter-chip.active {
+      border-color: rgba(82, 211, 255, 0.7);
+      background: rgba(30, 62, 113, 0.85);
+      color: #eff8ff;
+      box-shadow: 0 0 14px rgba(82, 211, 255, 0.22);
+    }
+
     .news-card {
       padding: 16px;
       transition: transform 160ms ease, border-color 160ms ease;
@@ -495,6 +526,15 @@
           <button class="button" id="refreshButton" type="button">Nieuws verversen</button>
         </div>
 
+        <div class="filter-bar" id="filterBar" aria-label="Nieuws categorieën">
+          <button class="filter-chip active" data-filter="all" type="button">Alles</button>
+          <button class="filter-chip" data-filter="ai" type="button">AI</button>
+          <button class="filter-chip" data-filter="devops" type="button">DevOps</button>
+          <button class="filter-chip" data-filter="dataverse" type="button">Dataverse</button>
+          <button class="filter-chip" data-filter="security" type="button">Security</button>
+          <button class="filter-chip" data-filter="azure" type="button">Azure</button>
+        </div>
+
         <div id="newsState" class="state-message">Klaar om nieuws op te halen…</div>
         <div id="newsList" class="news-list" aria-live="polite" style="margin-top: 12px;"></div>
       </section>
@@ -513,6 +553,7 @@
     const newsList = document.getElementById("newsList");
     const newsState = document.getElementById("newsState");
     const refreshButton = document.getElementById("refreshButton");
+    const filterBar = document.getElementById("filterBar");
 
     const metricItems = document.getElementById("metricItems");
     const metricItemsNote = document.getElementById("metricItemsNote");
@@ -525,6 +566,16 @@
 
     const AUTO_REFRESH_MS = 10 * 60 * 1000;
     const MAX_ITEMS = 12;
+    const FILTER_MAP = {
+      all: [],
+      ai: ["ai", "artificial intelligence", "copilot", "machine learning", "generative"],
+      devops: ["devops", "github actions", "pipelines", "ci/cd", "sre", "automation"],
+      dataverse: ["dataverse", "power platform", "power apps", "power automate", "dynamics 365"],
+      security: ["security", "defender", "sentinel", "identity", "entra", "zero trust"],
+      azure: ["azure", "cloud", "kubernetes", "aks", "app service"]
+    };
+    let activeFilter = "all";
+    let allNewsItems = [];
 
     function sanitizeText(value = "") {
       return value
@@ -579,8 +630,19 @@
       updateSummary.textContent = "Laatste poging mislukte. Feed blijft beschikbaar voor nieuwe refresh.";
     }
 
+    function getFilteredItems(items) {
+      const terms = FILTER_MAP[activeFilter] || [];
+      if (!terms.length) return items;
+
+      return items.filter((item) => {
+        const haystack = `${item.title} ${item.summary}`.toLowerCase();
+        return terms.some((term) => haystack.includes(term));
+      });
+    }
+
     function renderNews(items) {
       newsList.innerHTML = "";
+      const visibleItems = getFilteredItems(items);
 
       if (!items.length) {
         newsState.className = "state-message error";
@@ -590,12 +652,14 @@
       }
 
       newsState.className = "state-message";
-      newsState.textContent = `Laatste synchronisatie succesvol: ${items.length} Microsoft-items geladen.`;
+      newsState.textContent = visibleItems.length
+        ? `Laatste synchronisatie succesvol: ${visibleItems.length} items zichtbaar in filter "${activeFilter.toUpperCase()}".`
+        : `Filter "${activeFilter.toUpperCase()}" bevat nu geen items. Kies een andere categorie.`;
       metricStatus.textContent = "Actief";
 
       const fragment = document.createDocumentFragment();
 
-      items.forEach((item) => {
+      visibleItems.forEach((item) => {
         const article = document.createElement("article");
         article.className = "news-card";
 
@@ -663,8 +727,9 @@
         const merged = dedupeAndSort(rssItems);
         const sourceCount = rssResults.filter((result) => result.status === "fulfilled").length;
         const unavailable = rssSources.length - sourceCount;
+        allNewsItems = merged;
 
-        renderNews(merged);
+        renderNews(allNewsItems);
 
         const refreshMoment = new Date();
         const refreshLabel = refreshMoment.toLocaleTimeString("nl-NL", {
@@ -672,9 +737,10 @@
           minute: "2-digit"
         });
 
-        metricItems.textContent = String(merged.length);
-        metricItemsNote.textContent = merged.length
-          ? `${merged[0].source} • ${formatDate(merged[0].pubDate)}`
+        const visibleCount = getFilteredItems(allNewsItems).length;
+        metricItems.textContent = String(visibleCount);
+        metricItemsNote.textContent = allNewsItems.length
+          ? `${allNewsItems[0].source} • ${formatDate(allNewsItems[0].pubDate)}`
           : "Geen items gevonden.";
 
         metricRefresh.textContent = refreshLabel;
@@ -695,6 +761,20 @@
         refreshButton.disabled = false;
       }
     }
+
+    filterBar.addEventListener("click", (event) => {
+      const button = event.target.closest(".filter-chip");
+      if (!button) return;
+
+      activeFilter = button.dataset.filter || "all";
+      [...filterBar.querySelectorAll(".filter-chip")].forEach((chip) => {
+        chip.classList.toggle("active", chip === button);
+      });
+
+      const visibleCount = getFilteredItems(allNewsItems).length;
+      metricItems.textContent = String(visibleCount);
+      renderNews(allNewsItems);
+    });
 
     refreshButton.addEventListener("click", loadNews);
     loadNews();

@@ -1,124 +1,126 @@
-I want to improve the article fetching and filtering logic in my AI dashboard.
+I want to expand and improve the article fetching system in my AI dashboard so that I get significantly more articles and more recent content.
 
-The main problem right now is that the category filters are too broad. Articles are being shown under filters like "AI", "DevOps", "Data", "Security", and "Azure" even when they are only loosely related or not really relevant.
-
-I want you to redesign the filtering and categorization logic so it becomes much stricter, more accurate, and easier to maintain.
+Right now there are too few articles and they are not very up-to-date (for example, latest articles are from several days ago). I want to increase both volume and freshness.
 
 ## Main goal
-Make the dashboard show fewer but much more relevant articles per filter. Relevance is more important than volume.
-
-## Filters that must work much better
-- AI
-- DevOps
-- Data
-- Security
-- Azure
-
-An article may belong to multiple filters only if it truly matches multiple categories.
-
-## Core requirement
-Do not assign an article to a category based on one vague keyword alone. Use a stricter scoring or rule-based classification approach.
+- Fetch more articles per day
+- Ensure articles are recent (preferably within last 24–48 hours)
+- Use multiple reliable sources
+- Keep compatibility with the existing filtering system
 
 ## What I want you to implement
 
-### 1. Category-specific logic
-Create clear inclusion and exclusion logic for each category.
+### 1. Add multiple new sources
+Extend the current fetch logic with additional sources such as:
 
-For each category, define:
-- strong keywords / phrases
-- supporting keywords
-- exclusion keywords
-- a minimum threshold score
+#### Microsoft sources
+- Microsoft Learn blog
+- Azure Updates RSS
+- Microsoft Tech Community
+- Microsoft Security blog
+- Microsoft Fabric blog
+- Azure DevOps blog
 
-### 2. Scoring model
-Use a scoring system:
-- strong keyword in title = high score
-- strong keyword in summary/content = medium score
-- supporting keyword = low score
-- exclusion keyword = negative score
+#### General AI / tech sources
+- OpenAI blog
+- Google AI blog
+- Anthropic blog
+- Hugging Face blog
+- Towards Data Science (Medium)
+- The Rundown AI (RSS)
+- Ben's Bites (RSS)
+- ThereIsAnAIForThat (RSS if available)
 
-Only assign a category if the threshold is reached.
+#### Developer / DevOps sources
+- GitHub blog
+- Dev.to (filtered by tags like AI, DevOps, Azure)
+- Hashnode
+- Kubernetes blog
 
-### 3. Strict rules per category
+#### Data / analytics sources
+- Databricks blog
+- Snowflake blog
+- dbt blog
 
-AI:
-Include only:
-- AI, generative AI, LLM, Copilot, machine learning, AI agents, model training/inference, responsible AI
-Exclude vague mentions like “smart”, “automation”, etc.
+### 2. Use RSS feeds wherever possible
+Prefer RSS feeds because they are:
+- lightweight
+- consistent
+- easy to parse
 
-DevOps:
-Include only:
-- CI/CD, pipelines, GitHub Actions, Azure DevOps, IaC, containers, Kubernetes, deployment, SRE
-Exclude general development or cloud topics
+Create a structure like:
+- SOURCES array with RSS URLs
+- each source has:
+  - name
+  - url
+  - optional category hint
 
-Data:
-Include only:
-- data engineering, analytics, databases, Fabric, Synapse, ETL/ELT, lakehouse, pipelines, BI architecture
-Exclude generic reporting or AI unless data architecture is central
+### 3. Normalize all incoming articles
+For each fetched article, normalize into a standard structure:
+- title
+- link
+- source
+- published date
+- summary/description
+- optional tags
 
-Security:
-Include only:
-- cybersecurity, Defender, Sentinel, identity, zero trust, compliance, threats, vulnerabilities
-Exclude general IT topics
+### 4. Add recency filtering
+Only include articles that are:
+- preferably within the last 48 hours
+- maximum fallback: 7 days
 
-Azure:
-Include only:
-- Azure services, architecture, product updates, infrastructure, governance, deployments
-Exclude general Microsoft content without real Azure focus
+Sort all articles by:
+- most recent first
 
-### 4. Context-based matching
-Match based on:
-- strong keywords in title OR
-- multiple relevant keywords in title + summary
+### 5. Avoid duplicates
+Implement deduplication:
+- based on title similarity OR link
+- do not show the same article twice
 
-Do NOT match based on a single weak keyword.
+### 6. Increase fetch frequency (if applicable)
+If the dashboard refreshes data:
+- ensure it fetches more frequently
+- or supports manual refresh
 
-### 5. Exclusion handling
-If relevance score is too low:
-- do not assign category
-- optionally mark as uncategorized
+### 7. Combine with existing filters
+After fetching:
+- pass all articles through the improved category filtering system
+- do not bypass filtering logic
 
-### 6. Maintainable structure
-Create a clear structure like:
-- CATEGORY_RULES object
-- include keywords
-- exclude keywords
-- scoring weights
-- threshold per category
+### 8. Improve volume per category
+Ensure each category (AI, DevOps, Data, Security, Azure) has enough content by:
+- increasing sources
+- not over-filtering too early (filter AFTER fetch)
 
-### 7. Debug visibility
-Add simple debug logging:
-- matched category
-- matched keywords
-- score
-- threshold
+### 9. Fallback behavior
+If a category has too few articles:
+- allow slightly broader matches (but still relevant)
+- or show "no recent articles" instead of irrelevant ones
 
-### 8. Keep existing fetch logic
-Do not break current fetching.
-Only improve classification after fetching.
+### 10. Code structure
+Refactor into something like:
+- fetchArticlesFromSource(source)
+- fetchAllSources()
+- normalizeArticle(raw)
+- deduplicateArticles(list)
+- filterByRecency(list)
+- categorizeArticles(list)
 
-### 9. Priority
-Focus on quality over quantity.
-It is okay to show fewer articles if they are more relevant.
+### 11. Output I want
+- Updated fetching logic with multiple sources
+- Clear SOURCES configuration
+- Working integration with existing dashboard
+- Articles should visibly increase in quantity and recency
 
-### 10. Output
-1. Analyze current filtering logic
-2. Refactor into stricter system
-3. Implement category configs
-4. Update filtering behavior
-5. Allow multi-category only when justified
-6. Add debug logs
-7. Keep code clean and adjustable
+### 12. Important rules
+- Do not break the existing UI
+- Do not remove current sources
+- Add new sources in a scalable way
+- Prefer quality sources (no spammy content)
+- Keep performance reasonable
 
-### 11. Rules
-- Prefer precision over volume
-- Avoid false positives
-- Do not classify based on one weak keyword
-- Better to miss an article than show irrelevant ones
-- Only assign multiple categories with strong evidence
-
-### 12. Optional
-If helpful, create:
-- scoreArticleForCategory(article, categoryConfig)
-- centralized CATEGORY_RULES object
-- normalized text matching (title + summary)
+### 13. Optional improvements
+If useful:
+- add source badges (e.g. "Microsoft", "OpenAI")
+- add time labels like "2 hours ago"
+- allow future expansion of sources easily

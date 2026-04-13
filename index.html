@@ -188,6 +188,13 @@
     .metric-value {
       font-size: 1.75rem;
       font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .metric-note {
+      margin-top: 8px;
+      color: var(--text-soft);
+      font-size: 0.86rem;
     }
 
     .section {
@@ -435,12 +442,14 @@
 
       <section class="metrics" aria-label="Overzicht statistieken">
         <article class="metric-card">
-          <div class="metric-label">Nieuwsitems geladen</div>
-          <div class="metric-value" id="metricItems">0</div>
+          <div class="metric-label">Nieuws in feed</div>
+          <div class="metric-value" id="metricItems">—</div>
+          <div class="metric-note" id="metricItemsNote">Wacht op eerste sync...</div>
         </article>
         <article class="metric-card">
-          <div class="metric-label">Bronnen actief</div>
-          <div class="metric-value" id="metricSources">0</div>
+          <div class="metric-label">Bronstatus</div>
+          <div class="metric-value" id="metricSources">Controleren...</div>
+          <div class="metric-note" id="metricSourcesNote">Live check wordt uitgevoerd.</div>
         </article>
         <article class="metric-card">
           <div class="metric-label">Laatste refresh</div>
@@ -493,19 +502,10 @@
   </div>
 
   <script>
-    const feedSources = [
-      {
-        name: "Microsoft Blog",
-        url: "https://blogs.microsoft.com/feed/"
-      },
-      {
-        name: "Azure Blog",
-        url: "https://azure.microsoft.com/en-us/blog/feed/"
-      },
-      {
-        name: "OpenAI Blog",
-        url: "https://openai.com/news/rss.xml"
-      },
+    const rssSources = [
+      { name: "Microsoft Blog", url: "https://blogs.microsoft.com/feed/" },
+      { name: "Azure Blog", url: "https://azure.microsoft.com/en-us/blog/feed/" },
+      { name: "OpenAI Blog", url: "https://openai.com/news/rss.xml" },
       {
         name: "Google News AI",
         url: "https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en"
@@ -517,7 +517,9 @@
     const refreshButton = document.getElementById("refreshButton");
 
     const metricItems = document.getElementById("metricItems");
+    const metricItemsNote = document.getElementById("metricItemsNote");
     const metricSources = document.getElementById("metricSources");
+    const metricSourcesNote = document.getElementById("metricSourcesNote");
     const metricRefresh = document.getElementById("metricRefresh");
     const metricStatus = document.getElementById("metricStatus");
     const lastUpdated = document.getElementById("lastUpdated");
@@ -527,7 +529,11 @@
     const MAX_ITEMS = 12;
 
     function sanitizeText(value = "") {
-      return value.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+      return value
+        .replace(/<!\[CDATA\[|\]\]>/g, "")
+        .replace(/<[^>]*>/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
     }
 
     function escapeHtml(value = "") {
@@ -535,7 +541,7 @@
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
+        .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
     }
 
@@ -551,20 +557,13 @@
       });
     }
 
-    function sourceFromUrl(url) {
-      try {
-        const hostname = new URL(url).hostname.replace("www.", "");
-        return hostname;
-      } catch {
-        return "Onbekende bron";
-      }
-    }
-
     function setLoadingState() {
       newsState.className = "state-message";
       newsState.textContent = "Nieuws wordt opgehaald…";
       newsList.innerHTML = "";
       metricStatus.textContent = "Laden";
+      metricSources.textContent = "Controleren...";
+      metricSourcesNote.textContent = "Bronnen worden opnieuw getest.";
 
       for (let i = 0; i < 3; i += 1) {
         const skeleton = document.createElement("article");
@@ -577,6 +576,8 @@
       newsState.className = "state-message error";
       newsState.textContent = "Kon op dit moment geen nieuws laden. Probeer het zo opnieuw.";
       metricStatus.textContent = "Fout";
+      metricSources.textContent = "Tijdelijk offline";
+      metricSourcesNote.textContent = "Check netwerkverbinding of probeer handmatige refresh.";
       updateSummary.textContent = "Laatste poging mislukte. Feed blijft beschikbaar voor nieuwe refresh.";
     }
 
@@ -615,45 +616,81 @@
       newsList.appendChild(fragment);
     }
 
-    async function fetchFeed(feed) {
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`;
-      const response = await fetch(proxyUrl, { cache: "no-store" });
+    async function fetchRssViaRss2Json(feed) {
+      const endpoint = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=8`;
+      const response = await fetch(endpoint, { cache: "no-store" });
+      if (!response.ok) throw new Error(`rss2json niet bereikbaar: ${feed.name}`);
 
-      if (!response.ok) {
-        throw new Error(`Feed niet bereikbaar: ${feed.name}`);
+      const data = await response.json();
+      if (data.status !== "ok" || !Array.isArray(data.items)) {
+        throw new Error(`rss2json datafout: ${feed.name}`);
       }
 
-      const xmlText = await response.text();
-      const xmlDoc = new DOMParser().parseFromString(xmlText, "text/xml");
+      return data.items.map((item) => ({
+        title: sanitizeText(item.title || "Onbekende titel"),
+        link: (item.link || "#").trim(),
+        summary: sanitizeText(item.description || item.content || "").slice(0, 220) || "Geen samenvatting beschikbaar.",
+        pubDate: item.pubDate || new Date().toISOString(),
+        source: feed.name
+      }));
+    }
 
-      if (xmlDoc.querySelector("parsererror")) {
-        throw new Error(`Feed parse fout: ${feed.name}`);
-      }
+    async function fetchGdeltNews() {
+      const query = encodeURIComponent('("Microsoft" OR "Azure" OR "OpenAI" OR "artificial intelligence") lang:english');
+      const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&format=json&maxrecords=20&sort=datedesc`;
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) throw new Error("GDELT niet bereikbaar");
 
-      const entries = [...xmlDoc.querySelectorAll("item, entry")].map((entry) => {
-        const title = sanitizeText(entry.querySelector("title")?.textContent || "Onbekende titel");
-        const rawLink = entry.querySelector("link")?.getAttribute("href") || entry.querySelector("link")?.textContent || "#";
-        const description =
-          entry.querySelector("description")?.textContent ||
-          entry.querySelector("summary")?.textContent ||
-          entry.querySelector("content")?.textContent ||
-          "";
-        const pubDate =
-          entry.querySelector("pubDate")?.textContent ||
-          entry.querySelector("published")?.textContent ||
-          entry.querySelector("updated")?.textContent ||
-          new Date().toISOString();
+      const data = await response.json();
+      const articles = Array.isArray(data.articles) ? data.articles : [];
 
-        return {
-          title,
-          link: rawLink.trim(),
-          summary: sanitizeText(description).slice(0, 200) || "Geen samenvatting beschikbaar.",
-          pubDate,
-          source: feed.name || sourceFromUrl(rawLink)
-        };
+      return articles.map((article) => ({
+        title: sanitizeText(article.title || "Onbekende titel"),
+        link: (article.url || "#").trim(),
+        summary: sanitizeText(article.seendate ? `Gedetecteerd op ${article.seendate}.` : "").slice(0, 220) || "Geen samenvatting beschikbaar.",
+        pubDate: article.seendate || article.socialimage || new Date().toISOString(),
+        source: sanitizeText(article.domain || "GDELT")
+      }));
+    }
+
+    async function fetchHackerNewsFallback() {
+      const topics = ["Microsoft", "Azure", "OpenAI", "AI"];
+      const calls = topics.map((topic) =>
+        fetch(`https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(topic)}&tags=story&hitsPerPage=6`, {
+          cache: "no-store"
+        }).then((response) => {
+          if (!response.ok) throw new Error(`HN fout op ${topic}`);
+          return response.json();
+        })
+      );
+
+      const results = await Promise.all(calls);
+      return results.flatMap((result, index) =>
+        (result.hits || []).map((hit) => ({
+          title: sanitizeText(hit.title || `Nieuws over ${topics[index]}`),
+          link: (hit.url || hit.story_url || "#").trim(),
+          summary: `Fallback feed: ${topics[index]} via Hacker News.`,
+          pubDate: hit.created_at || new Date().toISOString(),
+          source: "Hacker News"
+        }))
+      );
+    }
+
+    function dedupeAndSort(items) {
+      const seen = new Set();
+      const unique = [];
+
+      items.forEach((item) => {
+        const key = `${item.title}|${item.link}`;
+        if (!seen.has(key) && item.link && item.link !== "#") {
+          seen.add(key);
+          unique.push(item);
+        }
       });
 
-      return entries;
+      return unique
+        .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
+        .slice(0, MAX_ITEMS);
     }
 
     async function loadNews() {
@@ -661,17 +698,29 @@
       setLoadingState();
 
       try {
-        const results = await Promise.allSettled(feedSources.map(fetchFeed));
+        const gdeltResult = await Promise.allSettled([fetchGdeltNews()]);
+        const rssResults = await Promise.allSettled(rssSources.map(fetchRssViaRss2Json));
 
-        const successfulItems = results
+        const gdeltItems = gdeltResult
           .filter((result) => result.status === "fulfilled")
           .flatMap((result) => result.value);
 
-        const sortedItems = successfulItems
-          .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
-          .slice(0, MAX_ITEMS);
+        const rssItems = rssResults
+          .filter((result) => result.status === "fulfilled")
+          .flatMap((result) => result.value);
 
-        renderNews(sortedItems);
+        let merged = dedupeAndSort([...gdeltItems, ...rssItems]);
+        let sourceCount = Number(gdeltItems.length > 0) + rssResults.filter((result) => result.status === "fulfilled").length;
+        let fallbackUsed = false;
+
+        if (!merged.length) {
+          const fallbackItems = await fetchHackerNewsFallback();
+          merged = dedupeAndSort(fallbackItems);
+          sourceCount = merged.length ? 1 : 0;
+          fallbackUsed = true;
+        }
+
+        renderNews(merged);
 
         const refreshMoment = new Date();
         const refreshLabel = refreshMoment.toLocaleTimeString("nl-NL", {
@@ -679,20 +728,30 @@
           minute: "2-digit"
         });
 
-        const activeSources = results.filter((result) => result.status === "fulfilled").length;
-        const failedSources = results.length - activeSources;
+        metricItems.textContent = String(merged.length);
+        metricItemsNote.textContent = merged.length
+          ? `${merged[0].source} • ${formatDate(merged[0].pubDate)}`
+          : "Geen items gevonden.";
 
-        metricItems.textContent = String(sortedItems.length);
-        metricSources.textContent = `${activeSources}/${feedSources.length}`;
         metricRefresh.textContent = refreshLabel;
         lastUpdated.textContent = `Laatste update: ${formatDate(refreshMoment.toISOString())}`;
-        updateSummary.textContent = failedSources
-          ? `${activeSources} bronnen actief, ${failedSources} tijdelijk niet bereikbaar.`
-          : `Alle ${activeSources} bronnen succesvol gesynchroniseerd.`;
 
-        if (!sortedItems.length) {
-          setErrorState();
+        if (fallbackUsed) {
+          metricSources.textContent = "Fallback actief";
+          metricSourcesNote.textContent = "Primaire feeds geven geen data; Hacker News wordt gebruikt.";
+          updateSummary.textContent = "Primaire feeds tijdelijk onbereikbaar. Fallback nieuwsbron actief.";
+        } else {
+          const unavailable = rssSources.length + 1 - sourceCount;
+          metricSources.textContent = unavailable > 0 ? `${sourceCount} online` : "Alle bronnen online";
+          metricSourcesNote.textContent = unavailable > 0
+            ? `${unavailable} bron(nen) tijdelijk traag of offline.`
+            : "Microsoft, Azure, OpenAI en AI-feed reageren goed.";
+          updateSummary.textContent = unavailable > 0
+            ? `${sourceCount} bronnen actief, ${unavailable} tijdelijk niet bereikbaar.`
+            : `Alle ${sourceCount} bronnen succesvol gesynchroniseerd.`;
         }
+
+        if (!merged.length) setErrorState();
       } catch (error) {
         setErrorState();
         console.error("Nieuws laden mislukt", error);

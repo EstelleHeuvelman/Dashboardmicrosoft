@@ -575,12 +575,27 @@
     const AUTO_REFRESH_MS = 10 * 60 * 1000;
     const MAX_ITEMS = 12;
     const FILTER_MAP = {
-      all: [],
-      ai: ["ai", "artificial intelligence", "copilot", "machine learning", "generative"],
-      devops: ["devops", "github actions", "pipelines", "ci/cd", "sre", "automation"],
-      dataverse: ["dataverse", "power platform", "power apps", "power automate", "dynamics 365"],
-      security: ["security", "defender", "sentinel", "identity", "entra", "zero trust"],
-      azure: ["azure", "cloud", "kubernetes", "aks", "app service"]
+      all: { keywords: [], sources: [] },
+      ai: {
+        keywords: ["copilot", "artificial intelligence", "ai", "machine learning", "generative", "llm", "agentic"],
+        sources: ["Microsoft DevBlogs", "Microsoft Blogs"]
+      },
+      devops: {
+        keywords: ["devops", "github", "pipelines", "ci/cd", "sre", "platform engineering", "docker", "kubernetes", "terraform"],
+        sources: ["Microsoft DevBlogs", "Azure Blog"]
+      },
+      dataverse: {
+        keywords: ["dataverse", "power platform", "power apps", "power automate", "dynamics 365", "business applications"],
+        sources: ["Microsoft 365 Blog", "Microsoft Blogs"]
+      },
+      security: {
+        keywords: ["security", "defender", "sentinel", "entra", "identity", "threat", "zero trust", "secops"],
+        sources: ["Microsoft Security Blog"]
+      },
+      azure: {
+        keywords: ["azure", "aks", "app service", "functions", "cloud", "kubernetes", "container apps"],
+        sources: ["Azure Blog", "Microsoft DevBlogs"]
+      }
     };
     let activeFilter = "all";
     let allNewsItems = [];
@@ -638,13 +653,29 @@
       updateSummary.textContent = "Laatste poging mislukte. Feed blijft beschikbaar voor nieuwe refresh.";
     }
 
+    function normalize(value = "") {
+      return value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function keywordMatch(text, keyword) {
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(`\\b${escaped}\\b`, "i");
+      return pattern.test(text);
+    }
+
     function getFilteredItems(items) {
-      const terms = FILTER_MAP[activeFilter] || [];
-      if (!terms.length) return items;
+      const config = FILTER_MAP[activeFilter];
+      if (!config || activeFilter === "all") return items;
 
       return items.filter((item) => {
-        const haystack = `${item.title} ${item.summary}`.toLowerCase();
-        return terms.some((term) => haystack.includes(term));
+        const haystack = normalize(`${item.title} ${item.summary}`);
+        const source = normalize(item.source);
+        const sourceHit = config.sources.some((sourceName) => source.includes(normalize(sourceName)));
+        const keywordHit = config.keywords.some((keyword) => keywordMatch(haystack, normalize(keyword)));
+        return sourceHit || keywordHit;
       });
     }
 
